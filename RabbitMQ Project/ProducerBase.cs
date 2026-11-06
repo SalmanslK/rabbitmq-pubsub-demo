@@ -1,26 +1,24 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using RabbitMQ.Client;
+using System.Text;
 
 namespace RabbitMQ_Project
 {
     public interface IRabbitMqProducer<in T>
     {
-        bool Publish(T @event);
+        bool Publish(T @event, string routingKey);
     }
 
     public abstract class ProducerBase<T> : RabbitMqClientBase, IRabbitMqProducer<T>
     {
-
-        protected ProducerBase(ConnectionFactory connectionFactory, string exchangeType) : base(connectionFactory, exchangeType, true) { }
-
-        public bool Publish(T @event)
+        protected ProducerBase(ConnectionFactory connectionFactory, string exchangeType)
+            : base(connectionFactory, exchangeType, true)
         {
-            var result = false;
+            Channel.ConfirmSelect();
+        }
+
+        public bool Publish(T @event, string routingKey)
+        {
             try
             {
                 var body = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(@event));
@@ -28,19 +26,17 @@ namespace RabbitMQ_Project
                 var properties = Channel.CreateBasicProperties();
                 properties.AppId = AppId;
                 properties.ContentType = "application/json";
-                properties.DeliveryMode = 2; //persist mode
+                properties.DeliveryMode = 2; // persistent
                 properties.Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
 
-                Channel.BasicPublish(exchange: RefinedExchangeName, routingKey: RefinedRoutingKey, basicProperties: properties, body: body);
-
-                result = true;
+                Channel.BasicPublish(exchange: RefinedExchangeName, routingKey: Refine(routingKey), basicProperties: properties, body: body);
+                return Channel.WaitForConfirms(TimeSpan.FromSeconds(5));
             }
             catch (Exception ex)
             {
-                result = false;
+                Console.WriteLine($"Error occurred in Publish. Message: {ex.Message}");
+                return false;
             }
-            return result;
         }
     }
-
 }

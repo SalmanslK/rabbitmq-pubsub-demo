@@ -1,22 +1,17 @@
-﻿using RabbitMQ.Client;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using RabbitMQ.Client;
 
 namespace RabbitMQ_Project
 {
     public abstract class RabbitMqClientBase : IDisposable
     {
-        protected const string VirtualHost = "MQ";
+        protected const string NamePrefix = "MQ";
         protected abstract string Exchange { get; }
         protected abstract string Queue { get; }
         protected abstract string AppId { get; }
         protected abstract string QueueAndExchangeRoutingKey { get; }
 
-        protected IModel Channel { get; private set; }
-        private IConnection _connection;
+        protected IModel Channel { get; private set; } = null!;
+        private IConnection? _connection;
         private readonly ConnectionFactory _connectionFactory;
         private readonly string _exchangeType;
         private readonly bool _isPublisher;
@@ -29,9 +24,11 @@ namespace RabbitMQ_Project
             ConnectToRabbitMq();
         }
 
-        protected internal string RefinedExchangeName => $"{VirtualHost}.{Exchange}";
-        protected internal string RefinedQueueName => $"{VirtualHost}.{Queue}";
-        protected internal string RefinedRoutingKey => $"{VirtualHost}.{QueueAndExchangeRoutingKey}";
+        protected static string Refine(string name) => $"{NamePrefix}.{name}";
+
+        protected internal string RefinedExchangeName => Refine(Exchange);
+        protected internal string RefinedQueueName => Refine(Queue);
+        protected internal string RefinedRoutingKey => Refine(QueueAndExchangeRoutingKey);
         private void ConnectToRabbitMq()
         {
             if (_connection == null || _connection.IsOpen == false)
@@ -55,7 +52,7 @@ namespace RabbitMQ_Project
         {
             Channel?.Close();
             Channel?.Dispose();
-            Channel = null;
+            Channel = null!;
 
             _connection?.Close();
             _connection?.Dispose();

@@ -1,34 +1,38 @@
 ﻿using Microsoft.Extensions.Hosting;
 using RabbitMQ.Client;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace RabbitMQ_Project
 {
-    public class ProductTopicConsumerService : ConsumerBase, IHostedService
+    public class ProductTopicProducer : ProducerBase<string>
     {
-        public ProductTopicConsumerService(ConnectionFactory connectionFactory)
-         : base(connectionFactory, ExchangeType.Direct)
+        public ProductTopicProducer(ConnectionFactory connectionFactory) : base(connectionFactory, ExchangeType.Topic) { }
+
+        protected override string Exchange => ProductTopicConsumerService.ExchangeName;
+        protected override string Queue => "";
+        protected override string AppId => "ProductProducer";
+        protected override string QueueAndExchangeRoutingKey => "";
+    }
+
+    /// <summary>Receives every message whose routing key matches Product.*</summary>
+    public class ProductTopicConsumerService : ConsumerBase<string>, IHostedService
+    {
+        public const string ExchangeName = "ProductExchangeTopic";
+
+        private readonly Action<string, string> _onMessage;
+
+        public ProductTopicConsumerService(ConnectionFactory connectionFactory, Action<string, string> onMessage)
+            : base(connectionFactory, ExchangeType.Topic)
         {
-            try
-            {
-                //Consume<ProductCreatedIntegrationEvent>();
-                Consume();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error => {ex?.Message}");
-            }
+            _onMessage = onMessage;
+            Consume();
         }
 
-        protected override string Exchange => "ProductExchangeTopic5";
-        protected override string Queue => "Product.Updated5";
-        protected override string AppId => "ProductCreatedConsumer";
+        protected override string Exchange => ExchangeName;
+        protected override string Queue => "Product.Events";
+        protected override string AppId => "ProductConsumer";
         protected override string QueueAndExchangeRoutingKey => "Product.*";
 
+        protected override void ReceiveAction(string message, string routingKey) => _onMessage(routingKey, message);
 
         public virtual Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 

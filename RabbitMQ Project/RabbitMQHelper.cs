@@ -1,22 +1,18 @@
 ﻿using RabbitMQ.Client;
-using RabbitMQ.Client.Events;
 using System.Text;
 
 namespace RabbitMQ_Project
 {
     public static class RabbitMQHelper
     {
-
-        public static IConnection GetConnection(string hostName, string userName, string password)
+        // Connection settings come from the environment; the defaults suit a local RabbitMQ server.
+        public static ConnectionFactory CreateFactory() => new()
         {
-            ConnectionFactory connectionFactory = new()
-            {
-                HostName = hostName,
-                UserName = userName,
-                Password = password
-            };
-            return connectionFactory.CreateConnection();
-        }
+            HostName = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost",
+            UserName = Environment.GetEnvironmentVariable("RABBITMQ_USER") ?? "guest",
+            Password = Environment.GetEnvironmentVariable("RABBITMQ_PASSWORD") ?? "guest",
+            DispatchConsumersAsync = true, // required by AsyncEventingBasicConsumer
+        };
 
         public static void Send(this IConnection connection, string queue, string data)
         {
@@ -25,48 +21,12 @@ namespace RabbitMQ_Project
             channel.BasicPublish(string.Empty, queue, null, Encoding.UTF8.GetBytes(data));
         }
 
-        public static void Receive(this IConnection connection, string queue)
+        public static string? Receive(this IConnection connection, string queue)
         {
             using IModel channel = connection.CreateModel();
             channel.QueueDeclare(queue, false, false, false, null);
-            var consumer = new EventingBasicConsumer(channel);
-            BasicGetResult result = channel.BasicGet(queue, true);
-            if (result != null)
-            {
-                string data = Encoding.UTF8.GetString(result.Body.ToArray());
-                Console.WriteLine(data);
-            }
+            BasicGetResult? result = channel.BasicGet(queue, true);
+            return result == null ? null : Encoding.UTF8.GetString(result.Body.ToArray());
         }
     }
 }
-
-
-//public static void Send(this IConnection connection, string queue, string data)
-//{
-//    //using (IConnection connection = new ConnectionFactory().CreateConnection())
-//    //{
-//    using (IModel channel = connection.CreateModel())
-//    {
-//        channel.QueueDeclare(queue, false, false, false, null);
-//        channel.BasicPublish(string.Empty, queue, null, Encoding.UTF8.GetBytes(data));
-//    }
-//    //}
-//}
-
-//public static void Receive(this IConnection connection, string queue)
-//{
-//    //using (IConnection connection = new ConnectionFactory().CreateConnection())
-//    //{
-//    using (IModel channel = connection.CreateModel())
-//    {
-//        channel.QueueDeclare(queue, false, false, false, null);
-//        var consumer = new EventingBasicConsumer(channel);
-//        BasicGetResult result = channel.BasicGet(queue, true);
-//        if (result != null)
-//        {
-//            string data = Encoding.UTF8.GetString(result.Body.ToArray());
-//            Console.WriteLine(data);
-//        }
-//    }
-//    //}
-//}
